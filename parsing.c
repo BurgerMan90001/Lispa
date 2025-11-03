@@ -160,7 +160,48 @@ lval* lval_read(mpc_ast_t* tree) {
 	}
 	return x;
 }
+lval* lval_eval_sexpr(lval* v) {
+	// Evaluate children
+	for (int i = 0; i < v->count; i++) {
+		v->cell[i] = lval_eval(v->cell[i]);
+	}
+	// Check for errors
+	for (int i = 0; i < v->count; i++) {
+		if (v->cell[i]->type == LVAL_ERR) {
+			return lval_take (v,i);
+		}
+	}
+	// If expression is empty
+	if (v->count == 0) {
+		return v;
+	}
+	// If expression is single
+	if (v->count == 1) {
+		return lval_take(v,0);
+	}
+	// Check if first element is Symbol
+	lval* firstElement = lval_pop(v, 0);
+	if (firstElement->type != LVAL_SYM) {
+		// Delete first element and its expression
+		lval_del(firstElement);
+		lval_del(v);
+		return lval_err("s-pression does not start with a symbol!");
+	}
+	lval* result = builtin_op(v, firstElement->sym);
+	lval_del(firstElement);
+	return result;
+	
+}
 
+lval* lval_eval(lval* v) {
+	lval* result;
+	if (v->type == LVAL_SEXPR) {
+		result = lval_eval_sexpr(v);
+	} else {
+		result = v;
+	}
+	return result;
+}
 // Forward declarations
 void lval_print(lval* v);
 
@@ -286,7 +327,8 @@ int main(int argc, char** argv) {
 	mpca_lang(MPCA_LANG_DEFAULT,
 		"                                                   \
 		number   : /-?[0-9]+/;                             \
-		symbol : '+' | '-' | '*' | '/';                \
+		symbol : '+' | '-' | '*' | '/' |                   \
+		 \"add\" | \"sub\" | \"mul\" | \"div\" ;           \
 		sexpr : '(' <expr>* ')';                    \
 		expr     : <number> | <symbol> | <sexpr> ;  \
 		lispy    : /^/ <expr>+ /$/ ;             \
