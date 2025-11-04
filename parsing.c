@@ -160,6 +160,11 @@ lval* lval_read(mpc_ast_t* tree) {
 	}
 	return x;
 }
+
+lval* lval_eval(lval* v);
+lval* lval_take(lval* v, int i);
+lval* lval_pop(lval* v, int i);
+
 lval* lval_eval_sexpr(lval* v) {
 	// Evaluate children
 	for (int i = 0; i < v->count; i++) {
@@ -190,7 +195,6 @@ lval* lval_eval_sexpr(lval* v) {
 	lval* result = builtin_op(v, firstElement->sym);
 	lval_del(firstElement);
 	return result;
-	
 }
 
 lval* lval_eval(lval* v) {
@@ -216,13 +220,38 @@ lval* lval_pop(lval* v, int i) {
 	memmove(&v->cell[i], &v->cell[i+1], sizeof(lval*) * (v->count-i));
 	
 	// Reallocate memory
-	v->cell = malloc(v->cell, sizeof(*lval) * v->count);
+	v->cell = realloc(v->cell, sizeof(lval*) * v->count);
 	
 	return popped_lval;
 }
 // Takes a lval from a s-expression and deletes the s-expression
 lval* lval_take(lval* v, int i) {
+	lval* result = lval_pop(v, i);
+	lval_del(v);
+	return result;
+}
+
+lval* builtin_op(lval* a, char* operation) {
+	// Check if all aruments are numbers
+	for (int i = 0; i->count; i++) {
+		if (a->cell[i]->type != LVAL_NUM) {
+			lval_del(a);
+			return lval_err("Can't operate on a non-number");
+		}
+	}
+	// Get the first element
+	lval* x = lval_pop(a, 0);
 	
+	// If there are no other elements and operator is -
+	if (a->count == 0 && strcmp(op, "-")) {
+		// negate number
+		x->num *= -1;
+	}
+	
+	while (a->count > 0) {
+		
+	}
+	return x;
 }
 // Forward declarations
 void lval_print(lval* v);
