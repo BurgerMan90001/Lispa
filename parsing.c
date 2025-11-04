@@ -373,8 +373,8 @@ int main(int argc, char** argv) {
 			lval_del(x);
 		} else {
 			// Else, print error
-			//mpc_err_print(r.error);
-			//mpc_err_delete(r.error);
+			mpc_err_print(r.error);
+			mpc_err_delete(r.error);
 		}
 	}
 	
