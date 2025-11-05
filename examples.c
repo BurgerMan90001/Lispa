@@ -37,3 +37,18 @@ mpca_lang(MPCA_LANG_DEFAULT,
 	
 
 mpc_cleanup(4, Adjective, Noun, Phrase, Doge);
+
+// counts the number of nodes in a tree
+int number_of_nodes(mpc_ast_t* tree) {
+	// base case no children
+	if (tree->children_num == 0) {
+		return 1;
+	}
+	if (tree->children_num >= 1) {
+		int total = 1;
+		for (int i = 0; i < tree->children_num; i++) {
+			total = total + number_of_nodes(tree->children[i]);
+		}
+	}
+	return 0;
+}

@@ -39,7 +39,8 @@ enum {
 	LVAL_ERR,
 	LVAL_NUM,
 	LVAL_SYM,
-	LVAL_SEXPR
+	LVAL_SEXPR,
+	LVAL_QEXPR
 };
 // lisp value error types
 enum {
@@ -94,11 +95,21 @@ lval* lval_sym(char* s) {
 	return v;
 }
 /*
-Constructor for symbol lval pointer
+Constructor for s-expression lval
 */
 lval* lval_sexpr(void) {
 	lval* v = malloc(sizeof(lval));
 	v->type = LVAL_SEXPR;
+	v->count = 0;
+	v->cell = NULL;
+	return v;
+}
+/*
+Constructor for q-expression lval
+*/
+lval* lval_qexpr(void) {
+	lval* v = malloc(sizeof(lval));
+	v->type = LVAL_QEXPR;
 	v->count = 0;
 	v->cell = NULL;
 	return v;
@@ -110,6 +121,7 @@ void lval_del(lval* v) {
 		case LVAL_NUM: break;
 		case LVAL_ERR: free(v->err); break;
 		case LVAL_SYM: free(v->sym); break;
+		case LVAL_QEXPR:
 		case LVAL_SEXPR:
 			// Free all elements in s expression
 			for (int i = 0; i < v->count; i++) {
@@ -150,11 +162,15 @@ lval* lval_read(mpc_ast_t* tree) {
 	lval* x = NULL;
 	if (strcmp(tree->tag, ">") == 0) { x = lval_sexpr(); }
 	if (strstr(tree->tag, "sexpr")) { x = lval_sexpr(); }
+	if (strstr(tree->tag, "qexpr")) { x = lval_qexpr(); }
 	
 	// Fill list with any valid expression contained within
 	for (int i = 0; i < tree->children_num; i++) {
+		// Don't read (, ), {, }, and regex
 		if (strcmp(tree->children[i]->contents, "(") == 0) { continue; }
 		if (strcmp(tree->children[i]->contents, ")") == 0) { continue; }
+		if (strcmp(tree->children[i]->contents, "{") == 0) { continue; }
+		if (strcmp(tree->children[i]->contents, "}") == 0) { continue; }
 		if (strcmp(tree->children[i]->tag, "regex") == 0) { continue; }
 		x = lval_add(x, lval_read(tree->children[i]));
 	}
@@ -231,6 +247,7 @@ lval* lval_take(lval* v, int i) {
 	lval_del(v);
 	return result;
 }
+
 bool isAddition(char* operatation) {
 	return strcmp(operatation, "+") == 0 || strcmp(operatation, "add") == 0;
 }
@@ -297,12 +314,6 @@ void lval_expr_print(lval* v, char open, char close) {
 	putchar(close);
 }
 
-
-// print lisp value with newline
-void lval_println(lval* v) {
-	lval_print(v);
-	putchar('\n');
-}
 // prints value or error of lisp value
 void lval_print(lval* v) {
 	switch (v->type) {
@@ -310,33 +321,21 @@ void lval_print(lval* v) {
 		case LVAL_ERR: printf("Error: %s", v->err); break;
 		case LVAL_SYM: printf("%s", v->sym); break;
 		case LVAL_SEXPR: lval_expr_print(v, '(', ')'); break;
+		case LVAL_QEXPR: lval_expr_print(v, '{', '}'); break;
 	}
 }
-
-/*
-// counts the number of nodes in a tree
-int number_of_nodes(mpc_ast_t* tree) {
-	// base case no children
-	if (tree->children_num == 0) {
-		return 1;
-	}
-	if (tree->children_num >= 1) {
-		int total = 1;
-		for (int i = 0; i < tree->children_num; i++) {
-			total = total + number_of_nodes(tree->children[i]);
-		}
-		return total;
-	}
-	return 0;
+// print lisp value with newline
+void lval_println(lval* v) {
+	lval_print(v);
+	putchar('\n');
 }
-*/
 
-
-int main(int argc, char** argv) {
+mpc_parser_t* define() {
 	// Parsers
 	mpc_parser_t* Number = mpc_new("number");
 	mpc_parser_t* Symbol = mpc_new("symbol");
 	mpc_parser_t* Sexpr = mpc_new("sexpr");
+	mpc_parser_t* Qexpr = mpc_new("qexpr");
 	mpc_parser_t* Expr = mpc_new("expr");
 	mpc_parser_t* Lispy = mpc_new("lispy");
 
@@ -345,13 +344,38 @@ int main(int argc, char** argv) {
 		"                                                   \
 		number   : /-?[0-9]+/;                             \
 		symbol : '+' | '-' | '*' | '/' |                   \
-		 \"add\" | \"sub\" | \"mul\" | \"div\" ;           \
+		 \"add\" | \"sub\" | \"mul\" | \"div\" |           \
+		 \"list\" | \"head\" | \"tail\" | \"join\" | \"eval\";  \
 		sexpr : '(' <expr>* ')';                    \
-		expr     : <number> | <symbol> | <sexpr> ;  \
+		qexpr : '{' <expr>* '}';                    \
+		expr     : <number> | <symbol> | <sexpr> | <qexpr>;  \
 		lispy    : /^/ <expr>+ /$/ ;             \
 	  ",
-	  Number, Symbol, Sexpr, Expr, Lispy);
-	// | \"add\" | \"sub\" | \"mul\" | \"div\" ;           
+	  Number, Symbol, Sexpr, Qexpr, Expr, Lispy);
+	return Lispy;
+}
+int main(int argc, char** argv) {
+	// Parsers
+	mpc_parser_t* Number = mpc_new("number");
+	mpc_parser_t* Symbol = mpc_new("symbol");
+	mpc_parser_t* Sexpr = mpc_new("sexpr");
+	mpc_parser_t* Qexpr = mpc_new("qexpr");
+	mpc_parser_t* Expr = mpc_new("expr");
+	mpc_parser_t* Lispy = mpc_new("lispy");
+
+	// Define the language
+	mpca_lang(MPCA_LANG_DEFAULT,
+		"                                                   \
+		number   : /-?[0-9]+/;                             \
+		symbol : '+' | '-' | '*' | '/' |                   \
+		 \"add\" | \"sub\" | \"mul\" | \"div\" |           \
+		 \"list\" | \"head\" | \"tail\" | \"join\" | \"eval\";  \
+		sexpr : '(' <expr>* ')';                    \
+		qexpr : '{' <expr>* '}';                    \
+		expr     : <number> | <symbol> | <sexpr> | <qexpr>;  \
+		lispy    : /^/ <expr>+ /$/ ;             \
+	  ",
+	  Number, Symbol, Sexpr, Qexpr, Expr, Lispy);
 	puts("Lispy Version 0.0.1");
 	puts("Press Ctrl+c to Exit\n");
 	
@@ -379,7 +403,7 @@ int main(int argc, char** argv) {
 	}
 	
 	/* Undefine and Delete our Parsers */
-	mpc_cleanup(5, Number, Symbol, Sexpr, Expr, Lispy);
+	mpc_cleanup(6, Number, Symbol, Sexpr, Qexpr, Expr, Lispy);
 
 	return 0;
 }
