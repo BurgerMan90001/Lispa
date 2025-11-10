@@ -1,5 +1,5 @@
 
-
+/*
 // Adjective parser
 mpc_parser_t* Adjective = mpc_or(4,
 	mpc_sym("wow"), mpc_sym("many"),
@@ -52,3 +52,17 @@ int number_of_nodes(mpc_ast_t* tree) {
 	}
 	return 0;
 }
+*/
+
+/*
+lval* builtin(lenv* e, lval* arg, char* name) {
+	if (strcmp("list", name) == 0) { return builtin_list(e, arg); }
+	if (strcmp("head", name) == 0) { return builtin_head(e, arg); }
+	if (strcmp("tail", name) == 0) { return builtin_tail(e, arg); }
+	if (strcmp("join", name) == 0) { return builtin_join(e, arg); }
+	if (strcmp("eval", name) == 0) { return builtin_eval(e, arg); }
+	if (strstr("+-/*", name)) { return builtin_op(e, arg, name); }
+	lval_del(arg);
+	return lval_err("Unknown function");
+}
+*/
