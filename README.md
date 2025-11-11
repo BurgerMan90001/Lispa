@@ -13,18 +13,24 @@ cc -std=c99 -Wall lispa.c mpc.c -ledit -lm -o lispa
 ```
 
 ## Examples
-#### Coments
+
+#### Comments
 ```
 ; use a semicolon for single-line comments
 ```
 #### Variable definitions
 Define variable x as 100 and message as "hello world"
+```
 (def {x} 100)
 (def {message} "hello world")
 ```
+#### Printing
+```
+(def {message} "hello world")
+(def {x} 100)
 ; prints "hello world"
 (print message)
-; prints x + 3
+; prints x + 3 which is 103
 (print (+ x 3))
 ```
 #### If statements
