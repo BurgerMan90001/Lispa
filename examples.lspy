@@ -2,7 +2,7 @@
 ; use a semicolon for single-line comments
 
 ; define variable x as 100
-(def {x} 1)
+(def {x} 100)
 
 ; print hello world
 (print "hello world")
