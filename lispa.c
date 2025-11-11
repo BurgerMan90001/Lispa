@@ -9,8 +9,6 @@ windows: cc -std=c99 -Wall lispa.c mpc.c -o lispa
 #include <stdbool.h>
 
 #include "mpc.h"
-//#include "lval.h"
-//#include "builtin.h"
 
 // If compiling on windows
 #ifdef _WIN32
@@ -644,11 +642,7 @@ lval* builtin_mul(lenv* env, lval* arg) {
 lval* builtin_div(lenv* env, lval* arg) {
 	return builtin_op(env, arg, "/");
 }
-/*
-lval* builtin_mod(lenv* env, lval* arg) {
-	return builtin_op(env, arg, "");
-}
-*/
+
 lval* builtin_head(lenv* e, lval* arg) {
 	// Error checking conditions
 	LASSERT_ARGS(arg, arg->count, 1, "head");
@@ -1068,38 +1062,38 @@ void lenv_builtin_add(lenv* env, char* name, lbuiltin func) {
 }
 
 // Register builtin functions
-void lenv_add_builtins(lenv* e) {
+void lenv_add_builtins(lenv* env) {
 	// variable functions
-	lenv_builtin_add(e, "def", builtin_def);
-	lenv_builtin_add(e, "\\", builtin_lambda);
-	lenv_builtin_add(e, "put", builtin_put);
+	lenv_builtin_add(env, "def", builtin_def);
+	lenv_builtin_add(env, "\\", builtin_lambda);
+	lenv_builtin_add(env, "put", builtin_put);
 
 	// list functions
-	lenv_builtin_add(e, "list", builtin_list);
-	lenv_builtin_add(e, "head", builtin_head);
-	lenv_builtin_add(e, "tail", builtin_tail);
-	lenv_builtin_add(e, "eval", builtin_eval);
-	lenv_builtin_add(e, "join", builtin_join);
+	lenv_builtin_add(env, "list", builtin_list);
+	lenv_builtin_add(env, "head", builtin_head);
+	lenv_builtin_add(env, "tail", builtin_tail);
+	lenv_builtin_add(env, "eval", builtin_eval);
+	lenv_builtin_add(env, "join", builtin_join);
 	
 	// math functions
-	lenv_builtin_add(e, "+", builtin_add);
-	lenv_builtin_add(e, "-", builtin_sub);
-	lenv_builtin_add(e, "*", builtin_mul);
-	lenv_builtin_add(e, "/", builtin_div);
+	lenv_builtin_add(env, "+", builtin_add);
+	lenv_builtin_add(env, "-", builtin_sub);
+	lenv_builtin_add(env, "*", builtin_mul);
+	lenv_builtin_add(env, "/", builtin_div);
 
 	// comparison functions
-	lenv_builtin_add(e, "if", builtin_if);
-	lenv_builtin_add(e, "==", builtin_equal);
-	lenv_builtin_add(e, "!=", builtin_not_equal);
-	lenv_builtin_add(e, ">", builtin_ge);
-	lenv_builtin_add(e, "<", builtin_le);
-	lenv_builtin_add(e, ">=", builtin_ge);
-	lenv_builtin_add(e, "<=", builtin_le);
+	lenv_builtin_add(env, "if", builtin_if);
+	lenv_builtin_add(env, "==", builtin_equal);
+	lenv_builtin_add(env, "!=", builtin_not_equal);
+	lenv_builtin_add(env, ">", builtin_ge);
+	lenv_builtin_add(env, "<", builtin_le);
+	lenv_builtin_add(env, ">=", builtin_ge);
+	lenv_builtin_add(env, "<=", builtin_le);
 
 	// string functions
-	lenv_builtin_add(e, "load", builtin_load);
-	lenv_builtin_add(e, "print", builtin_print);
-	lenv_builtin_add(e, "error", builtin_error);
+	lenv_builtin_add(env, "load", builtin_load);
+	lenv_builtin_add(env, "print", builtin_print);
+	lenv_builtin_add(env, "error", builtin_error);
 }
 
 void lval_expr_print(lval* val, char open, char close) {
