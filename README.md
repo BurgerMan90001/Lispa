@@ -15,7 +15,7 @@ cc -std=c99 -Wall lispa.c mpc.c -ledit -lm -o lispa
 ## Examples
 
 #### Comments
-```
+``` lspa
 ; use a semicolon for single-line comments
 ```
 #### Variable definitions
