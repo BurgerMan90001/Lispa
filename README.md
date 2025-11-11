@@ -1,4 +1,6 @@
-# A lisp i built to learn C.
+# Lispa
+
+A simple lisp programming language.
 
 ### Compile Comand on Windows
 ``` sh
