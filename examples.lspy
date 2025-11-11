@@ -2,7 +2,7 @@
 ; use a semicolon for single-line comments
 
 ; define variable x as 100
-(def {x} 100)
+(def {x} 1)
 
 ; print hello world
 (print "hello world")
@@ -21,7 +21,8 @@
 (print (map - {5 6 7 8 2 22 44}) )
 
 ; Filter all numbers greater than 2
-(print (filter (\ {x} {> x 2}) {5 2 11 -7 8 1}))
+(print(filter (\ {x} {> x 2}) {5 2 11 -7 8 1}))
+
 
 ; Switch case for day name
 (func {day-name x} {
@@ -35,4 +36,4 @@
     {6 "Sunday"}
 })
 
-(print (day-name 2))
+;(print (day-name 2))

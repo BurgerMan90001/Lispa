@@ -1085,7 +1085,8 @@ void lenv_add_builtins(lenv* env) {
 	lenv_builtin_add(env, "if", builtin_if);
 	lenv_builtin_add(env, "==", builtin_equal);
 	lenv_builtin_add(env, "!=", builtin_not_equal);
-	lenv_builtin_add(env, ">", builtin_ge);
+
+	lenv_builtin_add(env, ">", builtin_gt);
 	lenv_builtin_add(env, "<", builtin_le);
 	lenv_builtin_add(env, ">=", builtin_ge);
 	lenv_builtin_add(env, "<=", builtin_le);
@@ -1176,24 +1177,30 @@ void prompt(lenv* env) {
 		free(input);
 	}
 }
+// Loads a lispa file from a filename
+lval* load_file(lenv* env, char* filename) {
+	// Create a list of arguements with the filename as arguement
+	lval* args = lval_add(lval_sexpr(), lval_str(filename));
 
-void load_files(lenv* env, int argc, char** argv) {
-	// Loop over each file name
-	for (int i = 1; i < argc; i++) {
-		// Create a list of arguements with filename as arguement
-		lval* args = lval_add(lval_sexpr(), lval_str(argv[i]));
-
-		// Load the files
-		lval* result = builtin_load(env, args);
+	// Load the files
+	lval* result = builtin_load(env, args);
+	
+	// If there is an error, print it
+	if (result->type == LVAL_ERR) {
+		printf("Unable to load file %s\n", filename);
 		lval_println(result);
-		// If there is an error, print it
-		if (result->type == LVAL_ERR) {
-			printf("%s\n", argv[i]);
-			lval_println(result);
-			lval_del(result);
-		}
+		lval_del(result);
+	}
+	return result;
+}
+// Loads multiple a lispa files from a list of filenames
+void load_files(lenv* env, int argc, char** argv) {
+	// Loop over each file name in argv
+	for (int i = 1; i < argc; i++) {
+		load_file(env, argv[i]);
 	}
 }
+
 int main(int argc, char** argv) {
 	Number = mpc_new("number");
 	Symbol = mpc_new("symbol");
@@ -1204,7 +1211,7 @@ int main(int argc, char** argv) {
 	Expr = mpc_new("expr");
 	Lispy = mpc_new("lispy");
 
-	lval* standard_lib = lval_add(lval_sexpr(), lval_str("stlib.lspy"));
+	char* standard_lib = "stlib.lspy";
 
 	// Define the language
 	mpca_lang(MPCA_LANG_DEFAULT, language,
@@ -1215,7 +1222,7 @@ int main(int argc, char** argv) {
 	lenv_add_builtins(env);
 
 	// Load the standard library
-	builtin_load(env, standard_lib);
+	load_file(env, standard_lib);
 
 	// If there is 1 or more files
 	if (argc >= 2) {
@@ -1226,8 +1233,7 @@ int main(int argc, char** argv) {
 		prompt(env);
 	}
 	
-	// Delete environment and standard libary lval
-	lval_del(standard_lib);	
+	// Delete environment
 	lenv_del(env);
 	
 	// Undefine and delete parsers 

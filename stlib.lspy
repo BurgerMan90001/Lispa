@@ -99,10 +99,10 @@
 })
 
 ; Apply a filter to a list
-(func {filter f list} {
-    if (== list nil)
+(func {filter f l} {
+    if (== l nil)
         {nil}
-        {join (if (f (fst list)) {head list} {nil}) (filter f (tail list))}
+        {join (if (f (fst l)) {head l} {nil}) (filter f (tail l))}
 })
 
 
