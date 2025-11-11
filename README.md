@@ -5,22 +5,22 @@ A simple lisp programming language.
 
 ## Compiling and Running
 
-### Compile Comand on Windows
+Compile commands
+### On Windows
 ```sh
 cc -std=c99 -Wall lispa.c mpc.c -o lispa
 ```
-### Compile Comand on Linux / Mac
+### On Linux / Mac
 
 ```sh
 cc -std=c99 -Wall lispa.c mpc.c -ledit -lm -o lispa
 ```
-Then run lispa in the same file directory
 
+Then run lispa in the same file directory
 ### Run using the command line interface
 ```sh
 ./lispa
 ```
-
 ### Run a file
 ```sh
 ./lispa ./filename
