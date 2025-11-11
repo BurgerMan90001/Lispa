@@ -1216,8 +1216,6 @@ int main(int argc, char** argv) {
 
 	// Load the standard library
 	builtin_load(env, standard_lib);
-	// Delete it after loading into envrionment
-	lval_del(standard_lib);
 
 	// If there is 1 or more files
 	if (argc >= 2) {
@@ -1228,9 +1226,9 @@ int main(int argc, char** argv) {
 		prompt(env);
 	}
 	
-	// Delete environment
+	// Delete environment and standard libary lval
+	lval_del(standard_lib);	
 	lenv_del(env);
-	
 	
 	// Undefine and delete parsers 
 	mpc_cleanup(8, Number, Symbol, String, 
