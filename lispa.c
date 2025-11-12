@@ -82,18 +82,15 @@ mpc_parser_t* Qexpr;
 mpc_parser_t* Expr;
 mpc_parser_t* Lispy;
 
-const char* language = "  \
-	number   : /-?[0-9]+/;                       \
-	symbol : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&]+/ ; \
-	string  : /\"(\\\\.|[^\"])*\"/ ;             \
-	comment : /;[^\\r\\n]*/ ;                    \
-	sexpr : '(' <expr>* ')';                    \
-	qexpr : '{' <expr>* '}';                    \
-	expr     : <number> | <symbol> | <sexpr> \
-	| <qexpr> | <string> | <comment>; \
-	lispy    : /^/ <expr>+ /$/ ;             \
-	";
 
+
+#define RED     "\x1b[31m"
+#define GREEN   "\x1b[32m"
+#define YELLOW  "\x1b[33m"
+#define BLUE    "\x1b[34m"
+#define MAGENTA "\x1b[35m"
+#define CYAN    "\x1b[36m"
+#define RESET   "\x1b[0m"
 
 // lisp value
 struct lval {
@@ -126,35 +123,40 @@ struct lenv {
 	lval** vals;
 };
 
-#define RED     "\x1b[31m"
-#define GREEN   "\x1b[32m"
-#define YELLOW  "\x1b[33m"
-#define BLUE    "\x1b[34m"
-#define MAGENTA "\x1b[35m"
-#define CYAN    "\x1b[36m"
-#define RESET   "\x1b[0m"
 
-// Error condition
-#define LASSERT(arg, cond, format_text, ...) \
+/* Assertion macro */
+#define LASSERT(arg, cond, format_text, ...) { \
 	if (!(cond)) { \
 		lval* err = lval_err(format_text, ##__VA_ARGS__); \
 		lval_del(arg); \
 		return err; \
-	}
-
-#define LASSERT_ARGS(arg, got, expected, func) { \
-	bool cond = got == expected; \
-	LASSERT(arg, cond, "'%s' has too many arguments. " \
-		"Got %i, Expected %i", func, got, expected); \
+	} \
 }
 
-#define LASSERT_TYPE(arg, got, expected, func) { \
-	bool cond = got == expected; \
+/* Assertion macro for number of arguements */
+#define LASSERT_ARGS(arg, expected_arg_num, func_name) { \
+	bool cond = arg->count == expected_arg_num; \
+	LASSERT(arg, cond, "'%s' has too many arguments. " \
+		"Got %i, Expected %i", \
+		func_name, arg->count, expected_arg_num); \
+}
+
+/* Assertion macro for lval type  */
+#define LASSERT_TYPE(arg, index, expected_type, func_name) { \
+	bool cond = arg->cell[index]->type == expected_type; \
 	LASSERT(arg, cond, "'%s' passed the incorrect type. " \
 		"Got %s, Expected %s", \
-		func, ltype_name(got), ltype_name(expected)); \
+		func_name, ltype_name(arg->cell[index]->type), ltype_name(expected_type)); \
 }
 
+/* Assertion macro for non-empty expression */
+#define LASSERT_EXPR_NOT_EMPTY(arg, expected_num, func_name) { \
+	bool cond = arg->cell[0]->count != 0; \
+	LASSERT(arg, cond, \
+		"'%s' function passed {}! " \
+		"Got %i, Expected %i", \
+		func_name, arg->cell[0]->count, expected_num); \
+}
 // lisp value types
 enum lval_types {
 	LVAL_ERR,
@@ -217,9 +219,7 @@ lval* lval_sym(char* s) {
 	strcpy(v->sym, s);
 	return v;
 }
-/*
-Constructor for s-expression lval
-*/
+/* Constructor for s-expression lval */
 lval* lval_sexpr(void) {
 	lval* v = malloc(sizeof(lval));
 	v->type = LVAL_SEXPR;
@@ -227,9 +227,7 @@ lval* lval_sexpr(void) {
 	v->cell = NULL;
 	return v;
 }
-/*
-Constructor for q-expression lval
-*/
+/* Constructor for q-expression lval */
 lval* lval_qexpr(void) {
 	lval* v = malloc(sizeof(lval));
 	v->type = LVAL_QEXPR;
@@ -237,6 +235,7 @@ lval* lval_qexpr(void) {
 	v->cell = NULL;
 	return v;
 }
+/* Builtin function constructor */
 lval* lval_func(lbuiltin builtin) {
 	lval* v = malloc(sizeof(lval));
 	v->type = LVAL_FUNC;
@@ -365,6 +364,7 @@ lenv* lenv_copy(lenv* env) {
 	copy->vals = malloc(sizeof(lval*) * copy->count);
 	
 	for (int i = 0; i < env->count; i++) {
+		// Copy symbols and values
 		copy->syms[i] = malloc(strlen(env->syms[i]) + 1);
 		strcpy(copy->syms[i], env->syms[i]);
 		copy->vals[i] = lval_copy(env->vals[i]);
@@ -390,28 +390,28 @@ lval* lenv_get(lenv* env, lval* k) {
 	}
 }
 
-void lenv_put(lenv* e, lval* k, lval* v) {
+void lenv_put(lenv* env, lval* k, lval* v) {
 	// Check entire environment for duplicate variable
-	for (int i = 0; i < e->count; i++) {
+	for (int i = 0; i < env->count; i++) {
 		// If variable is already in environment
-		if (strcmp(e->syms[i], k->sym) == 0) {
+		if (strcmp(env->syms[i], k->sym) == 0) {
 			// Delete found variable
-			lval_del(e->vals[i]);
+			lval_del(env->vals[i]);
 			// Replace with v variable
-			e->vals[i] = lval_copy(v);
+			env->vals[i] = lval_copy(v);
 			return;
 		}
 	}
 	// If it does not exsist, create new entry
-	e->count++;
+	env->count++;
 	// Allocate memory for new entry
-	e->vals = realloc(e->vals, sizeof(lval*) * e->count);
-	e->syms = realloc(e->syms, sizeof(char*) * e->count);
+	env->vals = realloc(env->vals, sizeof(lval*) * env->count);
+	env->syms = realloc(env->syms, sizeof(char*) * env->count);
 	
 	// Copy lval and symbol into environment
-	e->vals[e->count-1] = lval_copy(v);
-	e->syms[e->count-1] = malloc(strlen(k->sym) + 1);
-	strcpy(e->syms[e->count-1], k->sym);
+	env->vals[env->count-1] = lval_copy(v);
+	env->syms[env->count-1] = malloc(strlen(k->sym) + 1);
+	strcpy(env->syms[env->count-1], k->sym);
 }
 
 void lenv_def(lenv* env, lval* k, lval* v) {
@@ -596,22 +596,22 @@ bool isDivision(char* operatation) {
 	return strcmp(operatation, "/") == 0;
 }
 
-lval* builtin_op(lenv* e, lval* a, char* operation) {
+lval* builtin_op(lenv* env, lval* arg, char* operation) {
 	// Check if all aruments are numbers
-	for (int i = 0; i < a->count; i++) {
-		LASSERT_TYPE(a, a->cell[i]->type, LVAL_NUM, operation);
+	for (int i = 0; i < arg->count; i++) {
+		LASSERT_TYPE(arg, i, LVAL_NUM, operation);
 	}
 	// Get the first element
-	lval* x = lval_pop(a, 0);
+	lval* x = lval_pop(arg, 0);
 	
 	// If there are no other elements and operator is -
-	if (a->count == 0 && isSubtraction(operation)) {
+	if (arg->count == 0 && isSubtraction(operation)) {
 		// negate number
 		x->num *= -1;
 	}
 	
-	while (a->count > 0) {
-		lval* y = lval_pop(a, 0);
+	while (arg->count > 0) {
+		lval* y = lval_pop(arg, 0);
 		if (isAddition(operation)) { x->num += y->num ; }
 		if (isSubtraction(operation)) { x->num  -= y->num ; }
 		if (isMultiplication(operation)) { x->num *= y->num; }
@@ -643,12 +643,11 @@ lval* builtin_div(lenv* env, lval* arg) {
 	return builtin_op(env, arg, "/");
 }
 
-lval* builtin_head(lenv* e, lval* arg) {
-	// Error checking conditions
-	LASSERT_ARGS(arg, arg->count, 1, "head");
-	LASSERT_TYPE(arg, arg->cell[0]->type, LVAL_QEXPR, "head");
-	LASSERT(arg, arg->cell[0]->count != 0,
-		"'head' function passed {}!");
+lval* builtin_head(lenv* env, lval* arg) {
+	/* Check that there is one arguement that is a non-empty q-expression */
+	LASSERT_ARGS(arg, 1, "head");
+	LASSERT_TYPE(arg, 0, LVAL_QEXPR, "head");
+	LASSERT_EXPR_NOT_EMPTY(arg, 1, "head");
 	
 	// Else, take first arguement / head
 	lval* v = lval_take(arg, 0);
@@ -658,12 +657,11 @@ lval* builtin_head(lenv* e, lval* arg) {
 	}
 	return v;
 }
-lval* builtin_tail(lenv* e, lval* arg) {
-	// Error checking conditions
-	LASSERT_ARGS(arg, arg->count, 1, "tail");
-	LASSERT_TYPE(arg, arg->cell[0]->type, LVAL_QEXPR, "tail");
-	LASSERT(arg, arg->cell[0]->count != 0,
-		"'tail' function passed {}!");
+lval* builtin_tail(lenv* env, lval* arg) {
+	/* Error checking conditions */
+	LASSERT_ARGS(arg, 1, "tail");
+	LASSERT_TYPE(arg, 0, LVAL_QEXPR, "tail");
+	LASSERT_EXPR_NOT_EMPTY(arg, 1, "tail");
 	
 	// Else, take first arguement
 	lval* v = lval_take(arg, 0);
@@ -672,26 +670,26 @@ lval* builtin_tail(lenv* e, lval* arg) {
 	return v;
 }
 // Converts a q-expression to a s-expression
-lval* builtin_list(lenv* e, lval* arg) {
+lval* builtin_list(lenv* env, lval* arg) {
 	arg->type = LVAL_QEXPR;
 	return arg;
 }
 // Converts a q-expression to a s-expression and evaluates it
-lval* builtin_eval(lenv* e, lval* arg) {
-	LASSERT_ARGS(arg, arg->count, 1, "eval");
-	LASSERT_TYPE(arg, arg->cell[0]->type, LVAL_QEXPR, "eval");
+lval* builtin_eval(lenv* env, lval* arg) {
+	LASSERT_ARGS(arg, 1, "eval");
+	LASSERT_TYPE(arg, 0, LVAL_QEXPR, "eval");
 	// Take first arguement and convert to s-expression
 	lval* x = lval_take(arg, 0);
 	x->type = LVAL_SEXPR;
 	// Evaluate
-	lval* result = lval_eval(e, x);
+	lval* result = lval_eval(env, x);
 	return result;
 }
 
-lval* builtin_join(lenv* e, lval* arg) {
-	// Check that all arguments are q-expressions
+lval* builtin_join(lenv* env, lval* arg) {
+	/* Check that all arguments are q-expressions */
 	for (int i = 0; i < arg->count; i++) {
-		LASSERT_TYPE(arg, arg->cell[i]->type, LVAL_QEXPR, "join");
+		LASSERT_TYPE(arg, i, LVAL_QEXPR, "join");
 	}
 	lval* x = lval_pop(arg, 0);
 	
@@ -707,16 +705,15 @@ lval* builtin_join(lenv* e, lval* arg) {
 }
 
 lval* builtin_lambda(lenv* env, lval* arg) {
+	char* func_name = "\\";
 	// Check for 2 arguements that are both q-expressions
-	LASSERT_ARGS(arg, arg->count, 2, "\\");
-	LASSERT_TYPE(arg, arg->cell[0]->type, LVAL_QEXPR, "\\");
-	LASSERT_TYPE(arg, arg->cell[1]->type, LVAL_QEXPR, "\\");
+	LASSERT_ARGS(arg, 2, func_name);
+	LASSERT_TYPE(arg, 0, LVAL_QEXPR, func_name);
+	LASSERT_TYPE(arg, 1, LVAL_QEXPR, func_name);
 
 	// Check that q-expression only has symbols
 	for (int i = 0; i < arg->cell[0]->count; i++) {
-		LASSERT(arg, (arg->cell[0]->cell[i]->type == LVAL_SYM),
-				"Cannot define non-symbol. Got %s, Expected %s",
-			ltype_name(arg->cell[0]->cell[i]->type), ltype_name(LVAL_SYM));
+		LASSERT_TYPE(arg->cell[0], i, LVAL_SYM, func_name);
 	}
 	// Get first two arguements 
 	lval* formals = lval_pop(arg, 0);
@@ -734,33 +731,29 @@ lval* builtin_put(lenv* env, lval* arg) {
 	return builtin_var(env, arg, "=");
 } 
 
-lval* builtin_var(lenv* env, lval* arg, char* func) {
+lval* builtin_var(lenv* env, lval* arg, char* func_name) {
 	// Check if first argument is symbol list
-	LASSERT_TYPE(arg, arg->cell[0]->type, LVAL_QEXPR, func);
+	LASSERT_TYPE(arg, 0, LVAL_QEXPR, func_name);
 	
 	// First argument is symbol list
 	lval* syms = arg->cell[0];
 
 	// Check that all elements of first list are symbols
 	for (int i = 0; i < syms->count; i++) {
-		LASSERT(arg, syms->cell[i]->type == LVAL_SYM, 
-			"'%s' function cannot define non-symbol."
-			"Got %s, Expected %s", func, 
-			ltype_name(syms->cell[i]->type), 
-			ltype_name(LVAL_SYM));
+		LASSERT_TYPE(syms, i, LVAL_SYM, func_name);
 	}
 
 	// Check that there is correct amount of symbols and values
-	LASSERT_ARGS(arg, syms->count, arg->count-1, func);
+	LASSERT_ARGS(syms, arg->count-1, func_name);
 
 	// Put copies of values to symbols
 	for (int i = 0; i < syms->count; i++) {
 		// If def define variable globally
-		if (strcmp(func, "def") == 0) {
+		if (strcmp(func_name, "def") == 0) {
 			lenv_def(env, syms->cell[i], arg->cell[i+1]);
 		}
 		// If put define variable locally
-		if (strcmp(func, "=") == 0) {
+		if (strcmp(func_name, "=") == 0) {
 			lenv_put(env, syms->cell[i], arg->cell[i+1]);
 		}
 	}
@@ -857,23 +850,27 @@ lval* lval_call(lenv* env, lval* func, lval* arg) {
 }
 lval* builtin_ordering(lenv* env, lval* arg, char* operation) {
 	// Ensure that there are two numbers
-	LASSERT_ARGS(arg, arg->count, 2, operation);
-	LASSERT_TYPE(arg, arg->cell[0]->type, LVAL_NUM, operation);
-	LASSERT_TYPE(arg, arg->cell[1]->type, LVAL_NUM, operation);
+	LASSERT_ARGS(arg, 2, operation);
+	LASSERT_TYPE(arg, 0, LVAL_NUM, operation);
+	LASSERT_TYPE(arg, 1, LVAL_NUM, operation);
 
 	int result;
+	int x = arg->cell[0]->num;
+	int y = arg->cell[1]->num;
+
 	if (strcmp(operation, ">") == 0) { 
-		result = arg->cell[0]->num > arg->cell[1]->num; 
+		result = x > y; 
 	}
 	if (strcmp(operation, "<") == 0) {
-		result = arg->cell[0]->num < arg->cell[1]->num; 
+		result = x < y; 
 	}
 	if (strcmp(operation, ">=") == 0) {
-		result = arg->cell[0]->num >= arg->cell[1]->num; 
+		result = x >= y; 
 	}
 	if (strcmp(operation, "<=") == 0) {
-		result = arg->cell[0]->num <= arg->cell[1]->num; 
+		result = x <= y; 
 	}
+
 	lval_del(arg);
 	return lval_num(result);
 }
@@ -893,7 +890,7 @@ lval* builtin_ge(lenv* env, lval* arg) {
 lval* builtin_le(lenv* env, lval* arg) {
 	return builtin_ordering(env, arg, "<=");
 }
-// Compares two lvals. 
+/* Compares two lvals. */
 int lval_equal(lval* x, lval* y) {
 	// Unequal when types mismatch
 	if (x->type != y->type) {
@@ -937,7 +934,7 @@ int lval_equal(lval* x, lval* y) {
 // Builtin comparison function
 lval* builtin_compare(lenv* env, lval* arg, char* operation) {
 	// Check that there are two arguements
-	LASSERT_ARGS(arg, arg->count, 2, operation);
+	LASSERT_ARGS(arg, 2, operation);
 
 	int result;
 	if (strcmp(operation, "==") == 0) {
@@ -956,10 +953,10 @@ lval* builtin_not_equal(lenv* env, lval* arg) {
 	return builtin_compare(env, arg, "!=");
 }
 lval* builtin_if(lenv* env, lval* arg) {
-	LASSERT_ARGS(arg, arg->count, 3, "if");
-	LASSERT_TYPE(arg, arg->cell[0]->type, LVAL_NUM, "if");
-	LASSERT_TYPE(arg, arg->cell[1]->type, LVAL_QEXPR, "if");
-	LASSERT_TYPE(arg, arg->cell[2]->type, LVAL_QEXPR, "if");
+	LASSERT_ARGS(arg, 3, "if");
+	LASSERT_TYPE(arg, 0, LVAL_NUM, "if");
+	LASSERT_TYPE(arg, 1, LVAL_QEXPR, "if");
+	LASSERT_TYPE(arg, 2, LVAL_QEXPR, "if");
 
 	lval* result;
 	// Set to s-expressions for evaluation
@@ -981,8 +978,8 @@ lval* builtin_if(lenv* env, lval* arg) {
 // Loads a lispa file
 lval* builtin_load(lenv* env, lval* arg) {
 	// Ensure that there is one arguement that is a string
-	LASSERT_ARGS(arg, arg->count, 1, "load");
-	LASSERT_TYPE(arg, arg->cell[0]->type, LVAL_STR, "load");
+	LASSERT_ARGS(arg, 1, "load");
+	LASSERT_TYPE(arg, 0, LVAL_STR, "load");
 
 	mpc_result_t result;
 	// Parse file by string name
@@ -1042,8 +1039,8 @@ lval* builtin_print(lenv* env, lval* arg) {
 
 lval* builtin_error(lenv* env, lval* arg) {
 	// Check that there is only one string arguement
-	LASSERT_ARGS(arg, arg->count, 1, "error");
-	LASSERT_TYPE(arg, arg->cell[0]->type, LVAL_STR, "error");
+	LASSERT_ARGS(arg, 1, "error");
+	LASSERT_TYPE(arg, 0, LVAL_STR, "error");
 
 	// Create error from first arguement
 	lval* error = lval_err(arg->cell[0]->str);
@@ -1051,14 +1048,14 @@ lval* builtin_error(lenv* env, lval* arg) {
 
 	return error;
 }
-void lenv_builtin_add(lenv* env, char* name, lbuiltin func) {
-	lval* k = lval_sym(name);
-	lval* v = lval_func(func);
+void lenv_builtin_add(lenv* env, char* builtin_func_name, lbuiltin func) {
+	lval* k = lval_sym(builtin_func_name);
+	lval* f = lval_func(func);
 	// Put copies into environment
-	lenv_put(env, k, v);
+	lenv_put(env, k, f);
 	// Delete originals
 	lval_del(k);
-	lval_del(v);
+	lval_del(f);
 }
 
 // Register builtin functions
@@ -1121,26 +1118,26 @@ void lval_print_str(lval* v) {
 	free(copy);
 }
 // prints value or error of lisp value
-void lval_print(lval* v) {
-	switch (v->type) {
+void lval_print(lval* var) {
+	switch (var->type) {
 		case LVAL_FUNC: 
-			if (v->builtin) {
+			if (var->builtin) {
 				printf("<builtin>");
 			} else {
 				printf("(\\ ");
-				lval_print(v->formals);
+				lval_print(var->formals);
 				putchar(' ');
-				lval_print(v->body);
+				lval_print(var->body);
 				putchar(')');
 			}
 		 	break;
-		case LVAL_NUM: printf("%li", v->num); break;
-		case LVAL_ERR: printf(RED "Error: " RESET "%s" , v->err); break;
-		case LVAL_SYM: printf("%s", v->sym); break;
-		case LVAL_STR: lval_print_str(v); break;
+		case LVAL_NUM: printf("%li", var->num); break;
+		case LVAL_ERR: printf(RED "Error: " RESET "%s" , var->err); break;
+		case LVAL_SYM: printf("%s", var->sym); break;
+		case LVAL_STR: lval_print_str(var); break;
 
-		case LVAL_SEXPR: lval_expr_print(v, '(', ')'); break;
-		case LVAL_QEXPR: lval_expr_print(v, '{', '}'); break;
+		case LVAL_SEXPR: lval_expr_print(var, '(', ')'); break;
+		case LVAL_QEXPR: lval_expr_print(var, '{', '}'); break;
 	}
 }
 // print lisp value with newline
@@ -1211,6 +1208,18 @@ int main(int argc, char** argv) {
 	Expr = mpc_new("expr");
 	Lispy = mpc_new("lispy");
 
+	const char* language = "  \
+		number   : /-?[0-9]+/;                       \
+		symbol : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&]+/ ; \
+		string  : /\"(\\\\.|[^\"])*\"/ ;             \
+		comment : /;[^\\r\\n]*/ ;                    \
+		sexpr : '(' <expr>* ')';                    \
+		qexpr : '{' <expr>* '}';                    \
+		expr     : <number> | <symbol> | <sexpr> \
+		| <qexpr> | <string> | <comment>; \
+		lispy    : /^/ <expr>+ /$/ ;             \
+		";
+	
 	char* standard_lib = "stlib.lspy";
 
 	// Define the language
@@ -1228,7 +1237,7 @@ int main(int argc, char** argv) {
 	if (argc >= 2) {
 		load_files(env, argc, argv);
 	} 
-	// Show interactive prompt
+	// If there no files, show interactive prompt
 	else if (argc == 1) {
 		prompt(env);
 	}
